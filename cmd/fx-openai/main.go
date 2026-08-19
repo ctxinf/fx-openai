@@ -115,9 +115,9 @@ Model: fx’s problem (FX_MODEL, /model, fx models). This process does not pick 
   fx-openai -print-env      fx Gateway exports for this -listen
 
 Examples:
-  fx-openai
   fx-openai -upstream http://127.0.0.1:11434/v1
-  fx-openai -upstream https://api.klia.tech/v1
+  fx-openai -upstream https://openrouter.ai/api/v1
+  fx-openai -upstream https://api.x.ai/v1
 `)
 	}
 
@@ -158,8 +158,8 @@ const howtoText = `fx-openai: fx (Vercel Gateway protocol) → this process on l
 Do not point FX_GATEWAY_BASE_URL at the remote host. fx only accepts loopback HTTP.
 
 Human:
-  1. OPENAI_API_KEY=... ./fx-openai -upstream https://ollama.com/v1
-     (local Ollama: -upstream http://127.0.0.1:11434/v1, key optional)
+  1. OPENAI_API_KEY=... ./fx-openai -upstream <provider /v1>
+     (local server: -upstream http://127.0.0.1:<port>/v1, key usually optional)
   2. In another terminal: eval "$(fx-openai -print-env)"
      Then pick a model the way fx already does (FX_MODEL, /model, fx models).
 

@@ -6,15 +6,13 @@ fx talks Vercel AI Gateway. Your server talks OpenAI `/v1`. This process sits on
 fx  →  http://127.0.0.1:8787  →  OpenAI-compatible /v1
 ```
 
-Works with Ollama, KLIA, vLLM, llama.cpp, or anything with `/v1/chat/completions` and `/v1/models`.
-
-Verified with fx 0.0.3: `fx ask --no-save` against this process → Ollama Cloud `gpt-oss:20b` returned `PONG`, then a `glob_files` tool call found a workspace file.
+Anything with `/v1/chat/completions` and `/v1/models`: local models, Ollama, OpenAI, OpenRouter, xAI, vLLM, llama.cpp, LM Studio, KLIA, etc.
 
 ## Configure fx (do not invent this)
 
 There are two separate things. Only the first is this process’s job.
 
-**Gateway URL (this process).** fx will not send traffic to a remote host. `eval` the loopback pair — never type `https://api.klia.tech` into `FX_GATEWAY_*`.
+**Gateway URL (this process).** fx will not send traffic to a remote host. `eval` the loopback pair — never type the provider URL into `FX_GATEWAY_*`.
 
 ```bash
 eval "$(fx-openai -print-env)"
@@ -22,7 +20,7 @@ eval "$(fx-openai -print-env)"
 
 That sets `FX_GATEWAY_BASE_URL`, `FX_GATEWAY_CHAT_URL` (both required), and a dummy `AI_GATEWAY_API_KEY`. It does **not** pick a model.
 
-**Model (fx).** This process does not know your catalog. KLIA, Ollama, and a laptop llama.cpp do not share ids. Use fx:
+**Model (fx).** This process does not know your catalog. Providers do not share ids. Use fx:
 
 ```bash
 fx models                  # list what the upstream actually has
@@ -40,16 +38,15 @@ fx’s built-in default is `zai/glm-5.2`. That is a Vercel catalog id. If your u
 ```bash
 cd fx-openai
 go build -o fx-openai ./cmd/fx-openai
-export OPENAI_API_KEY=...          # or OLLAMA_API_KEY
-# local Ollama: skip the key, use -upstream http://127.0.0.1:11434/v1
-./fx-openai
+export OPENAI_API_KEY=...          # that provider's key; skip for most local servers
+./fx-openai -upstream <https://…/v1 or http://127.0.0.1:<port>/v1>
 ```
 
 **2. Point fx at it**
 
 ```bash
 eval "$(fx-openai -print-env)"
-export FX_MODEL=gpt-oss:20b        # whatever `fx models` shows for YOU
+export FX_MODEL=...                # whatever `fx models` shows for that upstream
 fx ask --no-save -- "Reply with PONG. Do not use tools."
 ```
 
@@ -68,7 +65,7 @@ fx ask --no-save -- "Reply with PONG. Do not use tools."
 | Symptom | Cause |
 | --- | --- |
 | fx still hits `ai-gateway.vercel.sh` | Did not `eval "$(fx-openai -print-env)"` (missing `FX_GATEWAY_CHAT_URL`) |
-| `FX_GATEWAY_BASE_URL=https://api.…` ignored | By design. Only loopback HTTP. The *upstream* flag is how you reach KLIA/Ollama |
+| `FX_GATEWAY_BASE_URL=https://api.…` ignored | By design. Only loopback HTTP. The *upstream* flag is how you reach the provider |
 | Model not found / 403 | fx default or `FX_MODEL` is not an id *this* upstream lists. `fx models` |
 | Tools never appear | Catalog must tag `tool-use` (this process always does) |
 
