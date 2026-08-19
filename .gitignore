@@ -1,0 +1,6 @@
+/bin/
+/fx-openai
+.env
+*.exe
+*.test
+.DS_Store
