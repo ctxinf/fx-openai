@@ -1,4 +1,4 @@
 package version
 
-// String is the release version. Bump CHANGELOG.md in the same commit.
-const String = "0.3.0"
+// String is the release version. Release builds override it from the tag.
+var String = "0.3.0"

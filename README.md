@@ -98,6 +98,18 @@ incoming Authorization header and authenticates upstream with `api_key` from
 
 More detail: [HOWTO.md](HOWTO.md) or `./fx-openai -howto`.
 
+## Releases
+
+Push a version tag to build and publish downloadable archives automatically:
+
+```bash
+git tag v0.3.1
+git push origin v0.3.1
+```
+
+The release workflow publishes Linux, macOS, and Windows archives for amd64
+and arm64, plus `SHA256SUMS`. The binary version is taken from the tag.
+
 ## Example upstreams
 
 Same process for all of these. Only the URL, key, and model id change.
