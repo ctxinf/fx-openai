@@ -18,7 +18,31 @@ There are two separate things. Only the first is this process’s job.
 eval "$(fx-openai -print-env)"
 ```
 
-That sets `FX_GATEWAY_BASE_URL`, `FX_GATEWAY_CHAT_URL` (both required), and a dummy `AI_GATEWAY_API_KEY`. It does **not** pick a model.
+That sets `FX_GATEWAY_BASE_URL` and `FX_GATEWAY_CHAT_URL`, and removes
+Vercel-only credentials from this shell. It does **not** pick a model unless
+one is configured.
+
+The default configuration file is `~/.local/share/fx-openai/config.toml`.
+Values are applied in this order: built-in defaults, TOML, environment, then
+flags. For example:
+
+```toml
+listen = "127.0.0.1:8787"
+base_url = "https://api.openai.com/v1"
+model = "your-provider-model"
+api_key = "secret:..."
+```
+
+The `api_key` field may initially be entered as `plain:your-key`. The service
+commands automatically replace it with `secret:<base64>` before starting.
+
+The model is included by `-print-env` when set. You can also run fx directly;
+the child process receives the same variables without trying to modify the
+parent shell:
+
+```bash
+fx-openai fx -- ask --no-save -- "Reply with PONG."
+```
 
 **Model (fx).** This process does not know your catalog. Providers do not share ids. Use fx:
 
@@ -50,6 +74,23 @@ export FX_MODEL=...                # whatever `fx models` shows for that upstrea
 fx ask --no-save -- "Reply with PONG. Do not use tools."
 ```
 
+## User service
+
+Install the binary and generate the local service configuration under the XDG
+user directories:
+
+```bash
+OPENAI_API_KEY=... ./install.sh -upstream https://api.openai.com/v1
+fx-openai service start
+fx-openai service status
+```
+
+The generated directory contains `config.toml`, `fx-openai.service`, and
+`install-service`. Use `fx-openai service stop` or
+`fx-openai service remove` when the
+service is no longer needed. This is a `systemctl --user` service and listens
+on loopback by default.
+
 ## Agent (do this, in order)
 
 1. Go 1.22+ and an OpenAI-compatible base URL (`…/v1`).
@@ -57,6 +98,8 @@ fx ask --no-save -- "Reply with PONG. Do not use tools."
 3. `./fx-openai -listen 127.0.0.1:8787 -upstream <OPENAI_BASE_URL>` with `OPENAI_API_KEY` or `OLLAMA_API_KEY` set (dummy `ollama` is fine locally).
 4. `GET http://127.0.0.1:8787/healthz` → `ok`
 5. `eval "$(fx-openai -print-env)"` — do not hand-write remote Gateway URLs.
+   This also injects the local `AI_GATEWAY_API_KEY=local` placeholder required
+   by newer fx versions; it is not sent upstream as the provider key.
 6. `fx models` then `export FX_MODEL=<one of those ids>` if the default is wrong for this upstream.
 7. `fx ask --no-save --json -- "Reply with PONG. Do not use tools."`
 
@@ -74,6 +117,8 @@ fx ask --no-save -- "Reply with PONG. Do not use tools."
 ```
 fx-openai [-listen 127.0.0.1:8787] [-upstream https://ollama.com/v1]
 fx-openai -print-env
+fx-openai fx -- ask --no-save -- "Reply with PONG."
+fx-openai service init|start|stop|status|restart|remove
 fx-openai -howto
 fx-openai -version
 ```

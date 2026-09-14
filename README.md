@@ -20,6 +20,58 @@ cd fx-openai
 go build -o fx-openai ./cmd/fx-openai
 ```
 
+For a user-local binary and a user-level systemd service, run:
+
+```bash
+./install.sh -upstream https://api.openai.com/v1
+fx-openai service start
+```
+
+This installs `~/.local/bin/fx-openai` and generates
+`~/.local/share/fx-openai/config.toml` plus the service unit. Set
+`OPENAI_API_KEY` or `OLLAMA_API_KEY` before running the installer; the key is
+stored locally with mode `600`.
+
+The TOML configuration is read with this priority: built-in defaults, then
+`config.toml`, then environment variables, then command-line flags. All local
+settings, including the model, base URL, and API key, are in one file:
+
+```toml
+listen = "127.0.0.1:8787"
+base_url = "https://api.openai.com/v1"
+model = "your-provider-model"
+api_key = "secret:..."
+```
+
+For manual setup, `api_key = "plain:your-key"` is accepted. On `service init`,
+`service start`, or `service restart`, plaintext values are encrypted in place
+as `secret:<base64>`.
+
+Manage the user service with the binary itself:
+
+```bash
+fx-openai service init
+fx-openai service start
+fx-openai service status
+fx-openai service stop
+fx-openai service restart
+```
+
+To run fx with the Gateway variables and configured model injected in one
+command, use `fx-openai fx -- ...`:
+
+```bash
+fx-openai fx -- ask --no-save -- "Reply with PONG."
+```
+
+The old `eval "$(fx-openai -print-env)"` form remains supported and now also
+prints `FX_MODEL` when it is configured. It also sets the non-empty placeholder
+`AI_GATEWAY_API_KEY=local`, which newer fx versions require before they will
+send a request to a loopback Gateway URL. This is not the upstream credential:
+fx-openai ignores incoming Authorization and uses the `api_key` from its own
+config for the OpenAI-compatible provider. `install-service` remains as a
+compatibility wrapper for the same service subcommands.
+
 ## Run
 
 Terminal 1 — point `-upstream` at **your** OpenAI-compatible base (must include `/v1`):
@@ -37,7 +89,12 @@ export FX_MODEL=...                # an id that provider lists; or `fx models` /
 fx
 ```
 
-`-print-env` sets the Gateway URLs (both required, loopback only). It does not pick a model. That stays in fx (`FX_MODEL`, `/model`, `fx models`).
+`-print-env` sets the Gateway URLs (both required, loopback only) and the
+placeholder `AI_GATEWAY_API_KEY=local` required by newer fx versions. The
+placeholder is consumed only by the loopback shim; the shim ignores fx's
+incoming Authorization header and authenticates upstream with `api_key` from
+`config.toml`. It does not pick a model. That stays in fx (`FX_MODEL`, `/model`,
+`fx models`).
 
 More detail: [HOWTO.md](HOWTO.md) or `./fx-openai -howto`.
 
