@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - **Breaking:** the HTTP server moved under `fx-openai serve`. The bare
   `fx-openai [flags]` form no longer starts the translator; it prints usage and

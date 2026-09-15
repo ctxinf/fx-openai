@@ -14,4 +14,4 @@ jobs:
           go-version: "1.22"
       - run: go test ./...
       - run: go build -o fx-openai ./cmd/fx-openai
-      - run: ./fx-openai -version
+      - run: ./fx-openai version
