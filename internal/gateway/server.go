@@ -101,14 +101,32 @@ func (s *server) languageModel(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	// Proxies (mitmproxy, nginx) otherwise buffer the whole body and report the
+	// stream as broken instead of rendering it incrementally.
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
+	// Flush the headers immediately so intermediaries see a live stream even
+	// when the first upstream token is slow to arrive.
+	if flusher != nil {
+		flusher.Flush()
+	}
 
 	conv := translate.NewStream()
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
+	// bufio.Reader has no line-length ceiling, unlike bufio.Scanner, whose
+	// ErrTooLong on a large tool-call payload would truncate the stream.
+	reader := bufio.NewReaderSize(resp.Body, 64*1024)
+	for {
+		line, err := readLine(reader)
+		if err != nil {
+			if err != io.EOF && r.Context().Err() == nil {
+				log.Printf("language-model stream read: %v", err)
+				writeEvents(w, flusher, conv.Fail(err.Error()))
+				writeDone(w, flusher)
+				return
+			}
+			break
+		}
 		if !strings.HasPrefix(line, "data:") {
 			continue
 		}
@@ -118,12 +136,36 @@ func (s *server) languageModel(w http.ResponseWriter, r *http.Request) {
 		}
 		writeEvents(w, flusher, conv.Consume([]byte(data)))
 	}
-	if err := scanner.Err(); err != nil && r.Context().Err() == nil {
-		log.Printf("language-model stream read: %v", err)
-		writeEvents(w, flusher, conv.Fail(err.Error()))
-		return
-	}
 	writeEvents(w, flusher, conv.Close())
+	writeDone(w, flusher)
+}
+
+// readLine reads one \n-terminated line of unbounded length, returning it
+// without the trailing CR/LF.
+func readLine(r *bufio.Reader) (string, error) {
+	var buf []byte
+	for {
+		chunk, isPrefix, err := r.ReadLine()
+		if err != nil {
+			return "", err
+		}
+		if buf == nil && !isPrefix {
+			return string(chunk), nil
+		}
+		buf = append(buf, chunk...)
+		if !isPrefix {
+			return string(buf), nil
+		}
+	}
+}
+
+// writeDone emits the SSE sentinel. Without it a proxy sees a body that simply
+// stops and reports the request as dropped rather than complete.
+func writeDone(w http.ResponseWriter, flusher http.Flusher) {
+	_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	if flusher != nil {
+		flusher.Flush()
+	}
 }
 
 func writeEvents(w http.ResponseWriter, flusher http.Flusher, events [][]byte) {

@@ -212,3 +212,56 @@ func TestRequireLoopbackStillHolds(t *testing.T) {
 		t.Fatal("expected reject")
 	}
 }
+
+func TestLanguageModelStreamEndsWithDoneSentinel(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer up.Close()
+
+	h := New(openai.Config{BaseURL: up.URL + "/v1"})
+	req := httptest.NewRequest(http.MethodPost, "/v3/ai/language-model", strings.NewReader(`{
+		"prompt":[{"role":"user","content":[{"type":"text","text":"hi"}]}]
+	}`))
+	req.Header.Set(ModelIDHeader, "glm-5.2")
+	req.Header.Set(StreamingHeader, "true")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	body := rr.Body.String()
+	if !strings.HasSuffix(body, "data: [DONE]\n\n") {
+		t.Fatalf("stream must end with the [DONE] sentinel, got %q", body)
+	}
+	if rr.Header().Get("X-Accel-Buffering") != "no" {
+		t.Fatalf("X-Accel-Buffering = %q", rr.Header().Get("X-Accel-Buffering"))
+	}
+}
+
+func TestLanguageModelStreamHandlesVeryLongLine(t *testing.T) {
+	huge := strings.Repeat("a", 2*1024*1024)
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[{\"delta\":{\"content\":\""+huge+"\"}}]}\n\n")
+		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer up.Close()
+
+	h := New(openai.Config{BaseURL: up.URL + "/v1"})
+	req := httptest.NewRequest(http.MethodPost, "/v3/ai/language-model", strings.NewReader(`{
+		"prompt":[{"role":"user","content":[{"type":"text","text":"hi"}]}]
+	}`))
+	req.Header.Set(ModelIDHeader, "glm-5.2")
+	req.Header.Set(StreamingHeader, "true")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	body := rr.Body.String()
+	if !strings.Contains(body, huge) {
+		t.Fatalf("long delta was truncated (body %d bytes)", len(body))
+	}
+	if !strings.HasSuffix(body, "data: [DONE]\n\n") {
+		t.Fatal("long-line stream must still terminate with [DONE]")
+	}
+}
