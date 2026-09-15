@@ -15,7 +15,7 @@ There are two separate things. Only the first is this process’s job.
 **Gateway URL (this process).** fx will not send traffic to a remote host. `eval` the loopback pair — never type the provider URL into `FX_GATEWAY_*`.
 
 ```bash
-eval "$(fx-openai -print-env)"
+eval "$(fx-openai serve -print-env)"
 ```
 
 That sets `FX_GATEWAY_BASE_URL` and `FX_GATEWAY_CHAT_URL`, and removes
@@ -63,13 +63,13 @@ fx’s built-in default is `zai/glm-5.2`. That is a Vercel catalog id. If your u
 cd fx-openai
 go build -o fx-openai ./cmd/fx-openai
 export OPENAI_API_KEY=...          # that provider's key; skip for most local servers
-./fx-openai -upstream <https://…/v1 or http://127.0.0.1:<port>/v1>
+./fx-openai serve -upstream <https://…/v1 or http://127.0.0.1:<port>/v1>
 ```
 
 **2. Point fx at it**
 
 ```bash
-eval "$(fx-openai -print-env)"
+eval "$(fx-openai serve -print-env)"
 export FX_MODEL=...                # whatever `fx models` shows for that upstream
 fx ask --no-save -- "Reply with PONG. Do not use tools."
 ```
@@ -95,9 +95,9 @@ on loopback by default.
 
 1. Go 1.22+ and an OpenAI-compatible base URL (`…/v1`).
 2. `go build -o fx-openai ./cmd/fx-openai`
-3. `./fx-openai -listen 127.0.0.1:8787 -upstream <OPENAI_BASE_URL>` with `OPENAI_API_KEY` or `OLLAMA_API_KEY` set (dummy `ollama` is fine locally).
+3. `./fx-openai serve -listen 127.0.0.1:8787 -upstream <OPENAI_BASE_URL>` with `OPENAI_API_KEY` or `OLLAMA_API_KEY` set (dummy `ollama` is fine locally).
 4. `GET http://127.0.0.1:8787/healthz` → `ok`
-5. `eval "$(fx-openai -print-env)"` — do not hand-write remote Gateway URLs.
+5. `eval "$(fx-openai serve -print-env)"` — do not hand-write remote Gateway URLs.
    This also injects the local `AI_GATEWAY_API_KEY=local` placeholder required
    by newer fx versions; it is not sent upstream as the provider key.
 6. `fx models` then `export FX_MODEL=<one of those ids>` if the default is wrong for this upstream.
@@ -107,7 +107,7 @@ on loopback by default.
 
 | Symptom | Cause |
 | --- | --- |
-| fx still hits `ai-gateway.vercel.sh` | Did not `eval "$(fx-openai -print-env)"` (missing `FX_GATEWAY_CHAT_URL`) |
+| fx still hits `ai-gateway.vercel.sh` | Did not `eval "$(fx-openai serve -print-env)"` (missing `FX_GATEWAY_CHAT_URL`) |
 | `FX_GATEWAY_BASE_URL=https://api.…` ignored | By design. Only loopback HTTP. The *upstream* flag is how you reach the provider |
 | Model not found / 403 | fx default or `FX_MODEL` is not an id *this* upstream lists. `fx models` |
 | Tools never appear | Catalog must tag `tool-use` (this process always does) |
@@ -116,9 +116,10 @@ on loopback by default.
 
 ```
 fx-openai [-listen 127.0.0.1:8787] [-upstream https://ollama.com/v1]
-fx-openai -print-env
+fx-openai serve -print-env
+fx-openai service-test
 fx-openai fx -- ask --no-save -- "Reply with PONG."
 fx-openai service init|start|stop|status|restart|remove
-fx-openai -howto
-fx-openai -version
+fx-openai howto
+fx-openai version
 ```

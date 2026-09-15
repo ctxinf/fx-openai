@@ -107,7 +107,7 @@ cat >"$share_dir/install-service" <<EOF
 
 set -eu
 
-exec '$bin_dir/fx-openai' -config '$share_dir/config.toml' service "\$@"
+exec '$bin_dir/fx-openai' service "\$@" -config '$share_dir/config.toml'
 EOF
 chmod 700 "$share_dir/install-service"
 

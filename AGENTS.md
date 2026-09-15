@@ -38,10 +38,10 @@ Keep Gateway types out of the OpenAI client and OpenAI wire types out of the HTT
 ## Commands
 
 ```bash
-go run ./cmd/fx-openai -listen 127.0.0.1:8787 -upstream https://ollama.com/v1
+go run ./cmd/fx-openai serve -listen 127.0.0.1:8787 -upstream https://ollama.com/v1
 go test ./...
 gofmt -w .
-./fx-openai -version
-./fx-openai -print-env
-./fx-openai -howto
+./fx-openai version
+./fx-openai serve -print-env
+./fx-openai howto
 ```

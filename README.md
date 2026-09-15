@@ -27,6 +27,16 @@ For a user-local binary and a user-level systemd service, run:
 fx-openai service start
 ```
 
+Check that it actually works end to end:
+
+```bash
+fx-openai service-test
+```
+
+This calls the running translator on loopback — health, model catalog, and a
+real completion in both non-streaming and streaming mode — and exits nonzero if
+any check fails.
+
 This installs `~/.local/bin/fx-openai` and generates
 `~/.local/share/fx-openai/config.toml` plus the service unit. Set
 `OPENAI_API_KEY` or `OLLAMA_API_KEY` before running the installer; the key is
@@ -64,7 +74,7 @@ command, use `fx-openai fx -- ...`:
 fx-openai fx -- ask --no-save -- "Reply with PONG."
 ```
 
-The old `eval "$(fx-openai -print-env)"` form remains supported and now also
+The old `eval "$(fx-openai serve -print-env)"` form remains supported and now also
 prints `FX_MODEL` when it is configured. It also sets the non-empty placeholder
 `AI_GATEWAY_API_KEY=local`, which newer fx versions require before they will
 send a request to a loopback Gateway URL. This is not the upstream credential:
@@ -78,13 +88,13 @@ Terminal 1 — point `-upstream` at **your** OpenAI-compatible base (must includ
 
 ```bash
 export OPENAI_API_KEY=...          # whatever that provider expects; unused locally
-./fx-openai -upstream https://openrouter.ai/api/v1
+./fx-openai serve -upstream https://openrouter.ai/api/v1
 ```
 
 Terminal 2:
 
 ```bash
-eval "$(fx-openai -print-env)"
+eval "$(fx-openai serve -print-env)"
 export FX_MODEL=...                # an id that provider lists; or `fx models` / `/model`
 fx
 ```
@@ -96,7 +106,7 @@ incoming Authorization header and authenticates upstream with `api_key` from
 `config.toml`. It does not pick a model. That stays in fx (`FX_MODEL`, `/model`,
 `fx models`).
 
-More detail: [HOWTO.md](HOWTO.md) or `./fx-openai -howto`.
+More detail: [HOWTO.md](HOWTO.md) or `./fx-openai howto`.
 
 ## Releases
 

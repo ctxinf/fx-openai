@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking:** the HTTP server moved under `fx-openai serve`. The bare
+  `fx-openai [flags]` form no longer starts the translator; it prints usage and
+  exits 2. Regenerate the systemd unit with `fx-openai service init` (or
+  `start`/`restart`, which do it for you) so `ExecStart` picks up `serve`.
+- Add `fx-openai service-test`, which calls a running translator over loopback
+  and checks `/healthz`, the model catalog, and both a non-streaming and a
+  streaming completion. The streaming check fails if the response ends without
+  the `[DONE]` sentinel.
+- Fix translated SSE streams terminating without `[DONE]`, which made proxies
+  such as mitmproxy report completions as dropped requests.
+
 ## 0.3.0
 
 - Consolidate local settings into one `config.toml`

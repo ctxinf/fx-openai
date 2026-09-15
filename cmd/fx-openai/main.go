@@ -27,47 +27,87 @@ func main() {
 	log.SetPrefix("fx-openai: ")
 
 	args := os.Args[1:]
-	if len(args) > 0 {
-		switch args[0] {
-		case "service":
-			if err := runService(args[1:]); err != nil {
-				log.Print(err)
-				os.Exit(1)
-			}
-			return
-		case "fx":
-			if err := runFX(args[1:]); err != nil {
-				log.Print(err)
-				os.Exit(1)
-			}
-			return
-		}
-	}
-
-	opts, err := parseArgs(args, os.Stderr)
-	if err == flag.ErrHelp {
-		return
-	}
-	if err != nil {
-		log.Print(err)
+	if len(args) == 0 {
+		usage(os.Stderr)
 		os.Exit(2)
 	}
-	if opts.version {
+
+	// Subcommands own their own flag parsing; the bare command no longer
+	// starts a server, it prints usage.
+	switch args[0] {
+	case "serve":
+		runOrExit(func() error { return runServeCmd(args[1:]) })
+	case "service-test":
+		runOrExit(func() error { return runServiceTestCmd(args[1:]) })
+	case "service":
+		runOrExit(func() error { return runService(args[1:]) })
+	case "fx":
+		runOrExit(func() error { return runFX(args[1:]) })
+	case "help", "-h", "-help", "--help":
+		usage(os.Stdout)
+	case "-version", "--version", "version":
 		fmt.Println(version.String)
-		return
-	}
-	if opts.howto {
+	case "-howto", "--howto", "howto":
 		fmt.Print(howtoText)
-		return
+	default:
+		if strings.HasPrefix(args[0], "-") {
+			// Pre-subcommand invocations such as `fx-openai -listen ...`
+			// used to start the server. Point them at serve rather than
+			// silently doing nothing.
+			log.Printf("%q is no longer a top-level flag; use \"fx-openai serve %s\"", args[0], strings.Join(args, " "))
+		} else {
+			log.Printf("unknown command %q", args[0])
+		}
+		usage(os.Stderr)
+		os.Exit(2)
 	}
-	if opts.printEnv {
-		fmt.Print(fxEnvBlock(opts))
-		return
-	}
-	if err := runServer(opts); err != nil {
+}
+
+func runOrExit(fn func() error) {
+	if err := fn(); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		log.Print(err)
 		os.Exit(1)
 	}
+}
+
+func usage(w io.Writer) {
+	fmt.Fprintf(w, "fx-openai %s\n\n", version.String)
+	fmt.Fprintln(w, "Loopback translator so fx can talk to an OpenAI-compatible server.")
+	fmt.Fprintln(w, "\nUsage:")
+	fmt.Fprintln(w, "  fx-openai serve [flags]            start the translator")
+	fmt.Fprintln(w, "  fx-openai service-test [flags]     call the running translator end to end")
+	fmt.Fprintln(w, "  fx-openai fx [-- FX_ARGS...]       run fx with Gateway env injected")
+	fmt.Fprintln(w, "  fx-openai service <action>         manage the user systemd service")
+	fmt.Fprintln(w, "  fx-openai version | howto | help")
+	fmt.Fprintln(w, "\nService actions:")
+	fmt.Fprintln(w, "  init, start, stop, status, restart, remove")
+	fmt.Fprintln(w, "\nRun a subcommand with -h for its flags.")
+	fmt.Fprintln(w, "Configuration priority: defaults < config.toml < environment < flags.")
+}
+
+// runServeCmd parses serve's flags and starts the HTTP server. -print-env,
+// -howto and -version stay available here so existing scripted uses that only
+// gain a "serve" word keep working.
+func runServeCmd(args []string) error {
+	opts, err := parseArgs(args, os.Stderr)
+	if err != nil {
+		return err
+	}
+	switch {
+	case opts.version:
+		fmt.Println(version.String)
+		return nil
+	case opts.howto:
+		fmt.Print(howtoText)
+		return nil
+	case opts.printEnv:
+		fmt.Print(fxEnvBlock(opts))
+		return nil
+	}
+	return runServer(opts)
 }
 
 type options struct {
@@ -119,16 +159,12 @@ func parseArgs(args []string, errOut io.Writer) (options, error) {
 	fs.SetOutput(errOut)
 	fs.Usage = func() {
 		fmt.Fprintf(errOut, "fx-openai %s\n\n", version.String)
-		fmt.Fprintln(errOut, "Loopback translator so fx can talk to an OpenAI-compatible server.")
-		fmt.Fprintln(errOut, "\nUsage:")
-		fmt.Fprintln(errOut, "  fx-openai [flags]                  start the translator")
-		fmt.Fprintln(errOut, "  fx-openai fx [-- FX_ARGS...]       run fx with Gateway env injected")
-		fmt.Fprintln(errOut, "  fx-openai service <action>         manage the user systemd service")
-		fmt.Fprintln(errOut, "\nService actions:")
-		fmt.Fprintln(errOut, "  init, start, stop, status, restart, remove")
+		fmt.Fprintln(errOut, "Usage: fx-openai serve [flags]")
+		fmt.Fprintln(errOut, "\nStart the loopback translator between fx and an OpenAI-compatible server.")
 		fmt.Fprintln(errOut, "\nConfiguration priority: defaults < config.toml < environment < flags.")
+		fmt.Fprintln(errOut, "\nFlags:")
 		fs.PrintDefaults()
-		fmt.Fprintf(errOut, "\nConfig default: %s\nLegacy: fx-openai -print-env\n", configPath)
+		fmt.Fprintf(errOut, "\nConfig default: %s\n", configPath)
 	}
 	fs.StringVar(&opts.listen, "listen", opts.listen, "loopback listen address")
 	fs.StringVar(&opts.upstream, "upstream", opts.upstream, "OpenAI-compatible base URL (include /v1)")
@@ -318,7 +354,7 @@ func writeUnit(path, configPath string) error {
 		"After=network-online.target\n\n" +
 		"[Service]\n" +
 		"Type=simple\n" +
-		"ExecStart=" + exe + " -config " + configPath + "\n" +
+		"ExecStart=" + exe + " serve -config " + configPath + "\n" +
 		"Restart=on-failure\n" +
 		"RestartSec=2s\n\n" +
 		"[Install]\n" +
